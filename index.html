@@ -1,0 +1,1303 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Employee Migration Form </title>
+    <!-- Bootstrap 5 CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Font Awesome -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <div class="container py-4">
+      <div class="main-content">
+        <!-- Form Header -->
+        <div class="form-header text-center mb-4">
+          <div class="logo mb-3">
+            <img
+              src="./logo.png"
+              alt="Company Logo"
+              class="company-logo"
+              onerror="this.style.display = 'none'"
+            />
+          </div>
+          <h4 class="form-title">Employee Migration Form</h4>
+          <p class="text-muted">
+            Please fill all the required information accurately
+          </p>
+          <div class="alert alert-info d-flex align-items-center">
+            <i class="fas fa-info-circle me-2"></i>
+            <small>Form data will be exported as CSV after submission</small>
+          </div>
+
+          <!-- CSV Upload Section -->
+          <div class="csv-upload-section mt-3 mb-3">
+            <label for="csvFileInput" class="form-label fw-bold text-start ms-2">
+              <i class="fas fa-file-csv me-2 text-success"></i>Load Existing Employee CSV (Optional)
+            </label>
+            <div class="input-group">
+              <input
+                type="file"
+                id="csvFileInput"
+                class="form-control"
+                accept=".csv"
+                aria-label="Upload CSV file"
+              />
+              <button
+                class="btn btn-outline-success"
+                type="button"
+                id="csvUploadBtn"
+                title="Upload existing CSV to append new records"
+              >
+                <i class="fas fa-upload me-2"></i>Upload CSV
+              </button>
+            </div>
+            <small class="text-muted d-block mt-2">
+              💡 <strong>Tip:</strong> Upload an existing employee CSV file to append new employee records without losing existing data.
+            </small>
+            <div id="csvUploadStatus" class="mt-2"></div>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-container mb-4">
+          <div class="progress" style="height: 8px">
+            <div
+              class="progress-bar"
+              id="formProgress"
+              role="progressbar"
+              style="width: 16.7%"
+            ></div>
+          </div>
+          <div class="progress-steps d-flex justify-content-between mt-2">
+            <span class="step active">Personal Info</span>
+            <span class="step">Company Details</span>
+            <span class="step">Address & ID</span>
+            <span class="step">Education</span>
+            <span class="step">Experience</span>
+            <span class="step">Other Info</span>
+          </div>
+        </div>
+
+        <form id="onboardingForm">
+          <!-- Section 1: Personal Information -->
+          <div class="form-section active-section" id="section1">
+            <div class="section-header">
+              <i class="fas fa-user me-2"></i>Personal Information<span
+                class="required"
+                >*</span
+              >
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-2">
+                <div class="floating-input">
+                  <label for="salutation"
+                    >Salutation<span class="required">*</span></label
+                  >
+                  <select id="salutation" required>
+                    <option value="" selected disabled>Select</option>
+                    <option value="Mr.">Mr.</option>
+                    <option value="Ms.">Ms.</option>
+                    <option value="Mrs.">Mrs.</option>
+                    <option value="Dr.">Dr.</option>
+                    <option value="Prof.">Prof.</option>
+                  </select>
+                  <div class="invalid-feedback">Please select salutation</div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="floating-input">
+                  <label for="firstName"
+                    >First Name<span class="required">*</span></label
+                  >
+                  <input
+                    type="text"
+                    id="firstName"
+                    placeholder="Enter first name"
+                    required
+                  />
+                  <div class="invalid-feedback">
+                    Please enter your first name
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="floating-input">
+                  <label for="lastName"
+                    >Last Name<span class="required">*</span></label
+                  >
+                  <input
+                    type="text"
+                    id="lastName"
+                    placeholder="Enter last name"
+                    required
+                  />
+                  <div class="invalid-feedback">
+                    Please enter your last name
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-2">
+                <div class="floating-input">
+                  <label for="dateOfJoining"
+                    >Date of Joining<span class="required">*</span></label
+                  >
+                  <input
+                    type="date"
+                    id="dateOfJoining"
+                    required
+                  />
+                  <div class="invalid-feedback">
+                    Please select date of joining
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+              <div class="col-md-6">
+                <div class="floating-input">
+                  <label for="fullName"
+                    >Full Name<span class="required">*</span></label
+                  >
+                  <input
+                    type="text"
+                    id="fullName"
+                    placeholder="Enter your full name"
+                    required
+                  />
+                  <div class="invalid-feedback">
+                    Please enter your full name
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="floating-input">
+                  <label for="fatherName"
+                    >Father's Name<span class="required">*</span></label
+                  >
+                  <input
+                    type="text"
+                    id="fatherName"
+                    placeholder="Enter father's name"
+                    required
+                  />
+                  <div class="invalid-feedback">Please enter father's name</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+              <div class="col-md-4">
+                <div class="floating-input">
+                  <label for="contactNumber"
+                    >Contact Number<span class="required">*</span></label
+                  >
+                  <input
+                    type="tel"
+                    id="contactNumber"
+                    placeholder="Enter 10-digit mobile number"
+                    pattern="[0-9]{10}"
+                    required
+                  />
+                  <div class="invalid-feedback">
+                    Please enter a valid 10-digit mobile number
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="floating-input">
+                  <label for="emailAddress"
+                    >Email Address<span class="required">*</span></label
+                  >
+                  <input
+                    type="email"
+                    id="emailAddress"
+                    placeholder="Enter email address"
+                    required
+                  />
+                  <div class="invalid-feedback">
+                    Please enter a valid email address
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="floating-input">
+                  <label for="gender"
+                    >Gender<span class="required">*</span></label
+                  >
+                  <select id="gender" required>
+                    <option value="" selected disabled>Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                  </select>
+                  <div class="invalid-feedback">Please select gender</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+              <div class="col-md-4">
+                <div class="floating-input">
+                  <label for="maritalStatus"
+                    >Marital Status<span class="required">*</span></label
+                  >
+                  <select id="maritalStatus" required>
+                    <option value="" selected disabled>Select status</option>
+                    <option value="Single">Single</option>
+                    <option value="Married">Married</option>
+                    <option value="Divorced">Divorced</option>
+                    <option value="Widowed">Widowed</option>
+                  </select>
+                  <div class="invalid-feedback">
+                    Please select marital status
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="floating-input">
+                  <label for="dateOfBirth"
+                    >Date of Birth<span class="required">*</span></label
+                  >
+                  <input
+                    type="date"
+                    id="dateOfBirth"
+                    required
+                    max="2005-01-01"
+                  />
+                  <div class="invalid-feedback">
+                    Please select valid date of birth (must be 18+ years)
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="floating-input">
+                  <label for="bloodGroup">Blood Group</label>
+                  <select id="bloodGroup">
+                    <option value="" selected>Select</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="section-navigation mt-4">
+              <button
+                type="button"
+                class="btn btn-next"
+                onclick="onboardingForm.nextSection(2)"
+              >
+                Next: Company Details
+                <i class="fas fa-arrow-right ms-2"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 2: Company Details -->
+          <div class="form-section" id="section2">
+            <div class="section-header">
+              <i class="fas fa-building me-2"></i>Company Details<span
+                class="required"
+                >*</span
+              >
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-3">
+                <div class="floating-input">
+                  <label for="branch"
+                    >Branch<span class="required">*</span></label
+                  >
+                  <input
+                    type="text"
+                    id="branch"
+                    placeholder="Enter branch name"
+                    required
+                  />
+                  <div class="invalid-feedback">Please enter branch</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="floating-input">
+                  <label for="department"
+                    >Department<span class="required">*</span></label
+                  >
+                  <input
+                    type="text"
+                    id="department"
+                    placeholder="Enter department"
+                    required
+                  />
+                  <div class="invalid-feedback">Please enter department</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="floating-input">
+                  <label for="designation"
+                    >Designation<span class="required">*</span></label
+                  >
+                  <input
+                    type="text"
+                    id="designation"
+                    placeholder="Enter designation"
+                    required
+                  />
+                  <div class="invalid-feedback">Please enter designation</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="floating-input">
+                  <label for="reportTo"
+                    >Report To<span class="required">*</span></label
+                  >
+                  <input
+                    type="text"
+                    id="reportTo"
+                    placeholder="Enter reporting manager name"
+                    required
+                  />
+                  <div class="invalid-feedback">Please enter report to</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section-navigation mt-4">
+              <button
+                type="button"
+                class="btn btn-prev"
+                onclick="onboardingForm.prevSection(1)"
+              >
+                <i class="fas fa-arrow-left me-2"></i>Previous
+              </button>
+              <button
+                type="button"
+                class="btn btn-next"
+                onclick="onboardingForm.nextSection(3)"
+              >
+                Next: Address & Identification <i class="fas fa-arrow-right ms-2"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 3: Address & Identification Details -->
+          <div class="form-section" id="section3">
+            <div class="section-header">
+              <i class="fas fa-home me-2"></i>Address & Identification
+              Details<span class="required">*</span>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <h5>Current Address<span class="required">*</span></h5>
+                <div class="floating-input">
+                  <textarea
+                    id="currentAddress"
+                    rows="3"
+                    placeholder="Enter complete current address"
+                    required
+                  ></textarea>
+                  <div class="invalid-feedback">
+                    Please enter current address
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <h5>Permanent Address<span class="required">*</span></h5>
+                <div class="floating-input">
+                  <textarea
+                    id="permanentAddress"
+                    rows="3"
+                    placeholder="Enter complete permanent address"
+                    required
+                  ></textarea>
+                  <div class="invalid-feedback">
+                    Please enter permanent address
+                  </div>
+                </div>
+                <div class="form-check mt-2">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="sameAsCurrent"
+                  />
+                  <label class="form-check-label" for="sameAsCurrent">
+                    Same as current address
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-3 mt-3">
+              <div class="col-md-3">
+                <div class="floating-input">
+                  <label for="country"
+                    >Country<span class="required">*</span></label
+                  >
+                  <select id="country" required>
+                    <option value="India" selected>India</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="floating-input">
+                  <label for="state"
+                    >State<span class="required">*</span></label
+                  >
+                  <select id="state" required>
+                    <option value="" selected disabled>Select state</option>
+                    <option value="Odisha">Odisha</option>
+                    <option value="Telangana">Telangana</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <div class="invalid-feedback">Please select state</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="floating-input">
+                  <label for="district"
+                    >District<span class="required">*</span></label
+                  >
+                  <select id="district" required disabled>
+                    <option value="" selected disabled>Select district</option>
+                  </select>
+                  <div class="invalid-feedback">Please select district</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="floating-input">
+                  <label for="city">City<span class="required">*</span></label>
+                  <input
+                    type="text"
+                    id="city"
+                    placeholder="Enter city"
+                    required
+                  />
+                  <div class="invalid-feedback">Please enter city</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+              <div class="col-md-3">
+                <div class="floating-input">
+                  <label for="pincode"
+                    >Pincode<span class="required">*</span></label
+                  >
+                  <input
+                    type="text"
+                    id="pincode"
+                    placeholder="Enter 6-digit pincode"
+                    pattern="[0-9]{6}"
+                    required
+                  />
+                  <div class="invalid-feedback">
+                    Please enter valid 6-digit pincode
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="floating-input">
+                  <label for="aadharNumber"
+                    >Aadhar Number<span class="required">*</span></label
+                  >
+                  <input
+                    type="text"
+                    id="aadharNumber"
+                    placeholder="Enter 12-digit Aadhar"
+                    pattern="[0-9]{12}"
+                    required
+                  />
+                  <div class="invalid-feedback">
+                    Please enter valid 12-digit Aadhar number
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="floating-input">
+                  <label for="panNumber">PAN Number</label>
+                  <input
+                    type="text"
+                    id="panNumber"
+                    placeholder="Enter PAN number"
+                    pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}"
+                  />
+                  <div class="invalid-feedback">
+                    Please enter valid PAN number
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="floating-input">
+                  <label for="passportNumber">Passport Number</label>
+                  <input
+                    type="text"
+                    id="passportNumber"
+                    placeholder="Enter passport number"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-3 mt-2">
+              <div class="col-md-6">
+                <div class="floating-input">
+                  <label for="personalEmail"
+                    >Personal Email<span class="required">*</span></label
+                  >
+                  <input
+                    type="email"
+                    id="personalEmail"
+                    placeholder="Enter personal email address"
+                    required
+                  />
+                  <div class="invalid-feedback">
+                    Please enter a valid personal email address
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="floating-input">
+                  <label for="companyEmail"
+                    >Company Email<span class="required">*</span></label
+                  >
+                  <input
+                    type="email"
+                    id="companyEmail"
+                    placeholder="Enter company email address"
+                    required
+                  />
+                  <div class="invalid-feedback">
+                    Please enter a valid company email address
+                  </div>
+                </div>
+              </div>
+            </div>
+
+
+            <div class="section-navigation mt-4">
+              <button
+                type="button"
+                class="btn btn-prev"
+                onclick="onboardingForm.prevSection(2)"
+              >
+                <i class="fas fa-arrow-left me-2"></i>Previous
+              </button>
+              <button
+                type="button"
+                class="btn btn-next"
+                onclick="onboardingForm.nextSection(4)"
+              >
+                Next: Education Details <i class="fas fa-arrow-right ms-2"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 4: Educational Details -->
+          <div class="form-section" id="section4">
+            <div class="section-header">
+              <i class="fas fa-graduation-cap me-2"></i>Educational Details<span
+                class="required"
+                >*</span
+              >
+            </div>
+
+            <div id="educationContainer">
+              <div class="education-entry mb-4 p-3 border rounded">
+                <div class="row g-3">
+                  <div class="col-md-2">
+                    <div class="floating-input">
+                      <label for="educationLevel0"
+                        >Level<span class="required">*</span></label
+                      >
+                      <select class="education-level" data-index="0" required>
+                        <option value="" selected disabled>Select</option>
+                        <option value="10th/Matriculation">
+                          10th/Matriculation
+                        </option>
+                        <option value="12th/Intermediate">
+                          12th/Intermediate
+                        </option>
+                        <option value="Diploma">Diploma</option>
+                        <option value="Undergraduate">Undergraduate</option>
+                        <option value="Graduate">Graduate</option>
+                        <option value="Post-Graduate">Post-Graduate</option>
+                        <option value="Doctorate">Doctorate</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="col-md-2">
+                    <div class="floating-input">
+                      <label for="qualification0"
+                        >Qualification<span class="required">*</span></label
+                      >
+                      <input
+                        type="text"
+                        class="qualification"
+                        data-index="0"
+                        placeholder="e.g., B.Tech"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div class="col-md-2">
+                    <div class="floating-input">
+                      <label for="yearOfPassing0"
+                        >Year of Passing<span class="required">*</span></label
+                      >
+                      <input
+                        type="month"
+                        class="year-of-passing"
+                        data-index="0"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="floating-input">
+                      <label for="instituteName0"
+                        >Institute Name<span class="required">*</span></label
+                      >
+                      <input
+                        type="text"
+                        class="institute-name"
+                        data-index="0"
+                        placeholder="Start typing..."
+                        required
+                      />
+                      <div
+                        class="institute-suggestions"
+                        id="suggestions0"
+                      ></div>
+                    </div>
+                  </div>
+                  <div class="col-md-2">
+                    <div class="floating-input">
+                      <label for="boardUniversity0"
+                        >Board/University<span class="required">*</span></label
+                      >
+                      <input
+                        type="text"
+                        class="board-university"
+                        data-index="0"
+                        placeholder="Start typing..."
+                        required
+                      />
+                      <div
+                        class="university-suggestions"
+                        id="uniSuggestions0"
+                      ></div>
+                    </div>
+                  </div>
+                  <div class="col-md-1">
+                    <div class="floating-input">
+                      <label for="percentage0"
+                        >% / CGPA<span class="required">*</span></label
+                      >
+                      <input
+                        type="text"
+                        class="percentage"
+                        data-index="0"
+                        placeholder="e.g., 85%"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div class="row g-3 mt-2">
+                  <div class="col-md-2">
+                    <div class="floating-input">
+                      <label for="specialization0">Specialization</label>
+                      <input
+                        type="text"
+                        class="specialization"
+                        data-index="0"
+                        placeholder="e.g., AI & ML"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="col-md-4 text-end">
+                    <button
+                      type="button"
+                      class="btn btn-danger btn-sm"
+                      onclick="onboardingForm.removeEducationEntry(0)"
+                    >
+                      <i class="fas fa-trash me-1"></i>Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="text-end mb-3">
+              <button
+                type="button"
+                class="btn btn-outline-primary btn-sm"
+                onclick="onboardingForm.addEducationEntry()"
+              >
+                <i class="fas fa-plus me-1"></i>Add More
+              </button>
+            </div>
+
+            <div class="section-navigation mt-4">
+              <button
+                type="button"
+                class="btn btn-prev"
+                onclick="onboardingForm.prevSection(3)"
+              >
+                <i class="fas fa-arrow-left me-2"></i>Previous
+              </button>
+              <button
+                type="button"
+                class="btn btn-next"
+                onclick="onboardingForm.nextSection(5)"
+              >
+                Next: Work Experience <i class="fas fa-arrow-right ms-2"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 5: Work Experience -->
+          <div class="form-section" id="section5">
+            <div class="section-header">
+              <i class="fas fa-briefcase me-2"></i>Work Experience
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label"
+                >Do you have previous work experience?<span class="required"
+                  >*</span
+                ></label
+              >
+              <div class="form-check form-check-inline">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="hasExperience"
+                  id="hasExperienceYes"
+                  value="Yes"
+                  required
+                />
+                <label class="form-check-label" for="hasExperienceYes"
+                  >Yes</label
+                >
+              </div>
+              <div class="form-check form-check-inline">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="hasExperience"
+                  id="hasExperienceNo"
+                  value="No"
+                  checked
+                  required
+                />
+                <label class="form-check-label" for="hasExperienceNo">No</label>
+              </div>
+              <div class="invalid-feedback" id="experienceError">
+                Please select an option
+              </div>
+            </div>
+
+            <div id="experienceContainer" style="display: none">
+              <div class="experience-entry mb-4 p-3 border rounded">
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <div class="floating-input">
+                      <label for="company0"
+                        >Company<span class="required">*</span></label
+                      >
+                      <input
+                        type="text"
+                        class="company"
+                        data-index="0"
+                        placeholder="Company name"
+                        required
+                      />
+                      <div class="invalid-feedback">Please enter company name</div>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="floating-input">
+                      <label for="designation0"
+                        >Designation<span class="required">*</span></label
+                      >
+                      <input
+                        type="text"
+                        class="designation"
+                        data-index="0"
+                        placeholder="Your position"
+                        required
+                      />
+                      <div class="invalid-feedback">Please enter designation</div>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="floating-input">
+                      <label for="fromDate0"
+                        >From Date<span class="required">*</span></label
+                      >
+                      <input type="month" class="from-date" data-index="0" required />
+                      <div class="invalid-feedback">Please select from date</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row g-3 mt-2">
+                  <div class="col-md-4">
+                    <div class="floating-input">
+                      <label for="toDate0">To Date</label>
+                      <input
+                        type="month"
+                        class="to-date"
+                        data-index="0"
+                        placeholder="Present if current"
+                      />
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="floating-input">
+                      <label for="experienceAddress0">Company Address</label>
+                      <input
+                        type="text"
+                        class="experience-address"
+                        data-index="0"
+                        placeholder="Company address"
+                      />
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="floating-input">
+                      <label for="companyContact0">Company Contact</label>
+                      <input
+                        type="tel"
+                        class="company-contact"
+                        data-index="0"
+                        placeholder="Company phone"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row g-3 mt-2">
+                  <div class="col-md-3">
+                    <div class="floating-input">
+                      <label for="ctc0">CTC (Annual)</label>
+                      <input
+                        type="text"
+                        class="ctc"
+                        data-index="0"
+                        placeholder="e.g., 6 LPA"
+                      />
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="floating-input">
+                      <label for="reasonForLeaving0">Reason for Leaving</label>
+                      <input
+                        type="text"
+                        class="reason-for-leaving"
+                        data-index="0"
+                        placeholder="Why you left"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row g-3 mt-2">
+                  <div class="col-md-12 text-end">
+                    <button
+                      type="button"
+                      class="btn btn-danger btn-sm"
+                      onclick="onboardingForm.removeExperienceEntry(0)"
+                    >
+                      <i class="fas fa-trash me-1"></i>Delete Experience
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="text-end mb-3"
+              id="addExperienceBtn"
+              style="display: none"
+            >
+              <button
+                type="button"
+                class="btn btn-outline-primary btn-sm"
+                onclick="onboardingForm.addExperienceEntry()"
+              >
+                <i class="fas fa-plus me-1"></i>Add More Experience
+              </button>
+            </div>
+
+            <div class="section-navigation mt-4">
+              <button
+                type="button"
+                class="btn btn-prev"
+                onclick="onboardingForm.prevSection(4)"
+              >
+                <i class="fas fa-arrow-left me-2"></i>Previous
+              </button>
+              <button
+                type="button"
+                class="btn btn-next"
+                onclick="onboardingForm.nextSection(6)"
+              >
+                Next: Other Information <i class="fas fa-arrow-right ms-2"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 6: Other Information -->
+          <div class="form-section" id="section6">
+            <div class="section-header">
+              <i class="fas fa-info-circle me-2"></i>Other Information<span
+                class="required"
+                >*</span
+              >
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label"
+                >1. Have you ever been interviewed or offered employment by our
+                company?<span class="required">*</span></label
+              >
+              <div class="form-check form-check-inline">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="previousInterview"
+                  id="previousInterviewYes"
+                  value="Yes"
+                  required
+                />
+                <label class="form-check-label" for="previousInterviewYes"
+                  >Yes</label
+                >
+              </div>
+              <div class="form-check form-check-inline">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="previousInterview"
+                  id="previousInterviewNo"
+                  value="No"
+                  checked
+                  required
+                />
+                <label class="form-check-label" for="previousInterviewNo"
+                  >No</label
+                >
+              </div>
+              <div class="invalid-feedback">Please select an option</div>
+              <div
+                class="mt-2"
+                id="previousInterviewDetails"
+                style="display: none"
+              >
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <div class="floating-input">
+                      <label for="previousPosition">Position Applied For</label>
+                      <input
+                        type="text"
+                        id="previousPosition"
+                        placeholder="Enter position"
+                      />
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="floating-input">
+                      <label for="previousInterviewDate">Interview Date</label>
+                      <input type="date" id="previousInterviewDate" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label"
+                >2. Have you ever been convicted/exonerated by any criminal
+                Court?<span class="required">*</span></label
+              >
+              <div class="form-check form-check-inline">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="criminalCase"
+                  id="criminalCaseYes"
+                  value="Yes"
+                  required
+                />
+                <label class="form-check-label" for="criminalCaseYes"
+                  >Yes</label
+                >
+              </div>
+              <div class="form-check form-check-inline">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="criminalCase"
+                  id="criminalCaseNo"
+                  value="No"
+                  checked
+                  required
+                />
+                <label class="form-check-label" for="criminalCaseNo">No</label>
+              </div>
+              <div class="invalid-feedback">Please select an option</div>
+              <div class="mt-2" id="criminalCaseDetails" style="display: none">
+                <div class="floating-input">
+                  <label for="caseDetails">Case Details</label>
+                  <textarea
+                    id="caseDetails"
+                    rows="2"
+                    placeholder="Provide case details"
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label"
+                >3. Do you suffer from any physical disability?<span
+                  class="required"
+                  >*</span
+                ></label
+              >
+              <div class="form-check form-check-inline">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="disability"
+                  id="disabilityYes"
+                  value="Yes"
+                  required
+                />
+                <label class="form-check-label" for="disabilityYes">Yes</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input
+                  class="form-check-input"
+                  type="radio"
+                  name="disability"
+                  id="disabilityNo"
+                  value="No"
+                  checked
+                  required
+                />
+                <label class="form-check-label" for="disabilityNo">No</label>
+              </div>
+              <div class="invalid-feedback">Please select an option</div>
+              <div class="mt-2" id="disabilityDetails" style="display: none">
+                <div class="floating-input">
+                  <label for="disabilityDetail">Disability Details</label>
+                  <textarea
+                    id="disabilityDetail"
+                    rows="2"
+                    placeholder="Describe your disability"
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Terms and Conditions -->
+            <div class="terms-section mt-4">
+              <h6>
+                <i class="fas fa-file-contract me-2"></i>Terms And Conditions
+              </h6>
+
+              <div class="form-check mb-3">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="term1"
+                  required
+                />
+                <label class="form-check-label" for="term1">
+                  I certify that all information provided in this application is
+                  true and complete to the best of my knowledge.
+                  <span class="required">*</span>
+                </label>
+                <div class="invalid-feedback">You must agree to this term</div>
+              </div>
+
+              <div class="form-check mb-3">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="term2"
+                  required
+                />
+                <label class="form-check-label" for="term2">
+                  I understand that any false statement or omission may lead to
+                  disqualification or termination of employment.
+                  <span class="required">*</span>
+                </label>
+                <div class="invalid-feedback">You must agree to this term</div>
+              </div>
+
+              <div class="form-check mb-3">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="term3"
+                  required
+                />
+                <label class="form-check-label" for="term3">
+                  I agree to maintain the confidentiality of all company
+                  information and not to share it externally.
+                  <span class="required">*</span>
+                </label>
+                <div class="invalid-feedback">You must agree to this term</div>
+              </div>
+
+              <div class="form-check mb-3">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="term4"
+                  required
+                />
+                <label class="form-check-label" for="term4">
+                  I authorize the company to verify all information provided in
+                  this application.
+                  <span class="required">*</span>
+                </label>
+                <div class="invalid-feedback">You must agree to this term</div>
+              </div>
+
+              <div class="row mt-4">
+                <div class="col-md-4">
+                  <div class="signature-input">
+                    <label for="esignature"
+                      >E-Signature<span class="required">*</span></label
+                    >
+                    <input
+                      type="text"
+                      id="esignature"
+                      placeholder="Type your full name"
+                      required
+                    />
+                    <div class="invalid-feedback">
+                      Please provide your signature
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="signature-input">
+                    <label for="signatureDate"
+                      >Date<span class="required">*</span></label
+                    >
+                    <input type="date" id="signatureDate" required />
+                    <div class="invalid-feedback">Please select date</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="signature-input">
+                    <label for="signaturePlace"
+                      >Place<span class="required">*</span></label
+                    >
+                    <input
+                      type="text"
+                      id="signaturePlace"
+                      placeholder="City, State"
+                      required
+                    />
+                    <div class="invalid-feedback">Please enter place</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section-navigation mt-4">
+              <button
+                type="button"
+                class="btn btn-prev"
+                onclick="onboardingForm.prevSection(5)"
+              >
+                <i class="fas fa-arrow-left me-2"></i>Previous
+              </button>
+              <button type="submit" class="btn btn-submit">
+                <i class="fas fa-paper-plane me-2"></i>Submit Application
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Summary Modal -->
+    <div
+      class="modal fade"
+      id="summaryModal"
+      tabindex="-1"
+      aria-labelledby="summaryModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title" id="summaryModalLabel">
+              <i class="fas fa-file-alt me-2"></i>Review Your Application
+            </h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body" id="summaryContent">
+            <!-- Summary content will be loaded here -->
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              <i class="fas fa-edit me-1"></i>Edit Application
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              onclick="onboardingForm.generateAndDownloadCSV()"
+            >
+              <i class="fas fa-download me-1"></i>Download CSV
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
