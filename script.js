@@ -8,7 +8,7 @@ class OnboardingForm {
         this.educationInstitutions = {};
         this.universities = [];
         this.existingCSVData = null; // Store existing CSV data
-        this.existingCSVFileName = 'employee_data.csv'; // Default file name
+        this.existingCSVFileName = 'Employee-Detials.csv'; // Default file name - matches existing file
         
         this.init();
     }
@@ -21,7 +21,72 @@ class OnboardingForm {
         this.loadUniversityData();
         this.addRealTimeValidation();
         this.updateProgress();
+        this.autoLoadExistingCSV(); // Automatically load existing CSV if available
         console.log('Onboarding Form initialized successfully');
+    }
+
+    /**
+     * Automatically load existing CSV file if available
+     * Priority: 1) localStorage, 2) Fetch from folder, 3) Create new
+     */
+    autoLoadExistingCSV() {
+        // First, try to load from localStorage (for offline/local file support)
+        const savedCSVData = localStorage.getItem('employeeCSVData');
+        if (savedCSVData) {
+            try {
+                this.existingCSVData = savedCSVData;
+                const recordCount = this.countCSVRows(savedCSVData);
+                this.showAutoLoadStatus(recordCount, true);
+                console.log(`✓ Loaded from localStorage: ${recordCount} records`);
+                return;
+            } catch (e) {
+                console.log('Error loading from localStorage, trying fetch...');
+            }
+        }
+
+        // If not in localStorage, try to fetch from folder (works with server)
+        fetch('Employee-Detials.csv')
+            .then(response => {
+                if (!response.ok) throw new Error('File not found');
+                return response.text();
+            })
+            .then(csvContent => {
+                this.existingCSVData = csvContent;
+                // Save to localStorage for next time
+                localStorage.setItem('employeeCSVData', csvContent);
+                
+                const recordCount = this.countCSVRows(csvContent);
+                this.showAutoLoadStatus(recordCount, true);
+                console.log(`✓ Auto-loaded Employee-Detials.csv with ${recordCount} records`);
+            })
+            .catch(error => {
+                // No existing file found
+                this.showAutoLoadStatus(0, false);
+                console.log('Employee-Detials.csv not found. Will create on first submission.');
+            });
+    }
+
+    showAutoLoadStatus(recordCount, success) {
+        const statusDiv = document.getElementById('csvUploadStatus');
+        if (!statusDiv) return;
+
+        if (success && recordCount > 0) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>✓ Auto-Loaded!</strong> Employee-Detials.csv<br>
+                    <small>📊 Existing Records: <strong>${recordCount}</strong> employees</small><br>
+                    <small style="color: #065f46;">✓ New entries will append automatically.</small>
+                </div>
+            `;
+        } else {
+            statusDiv.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <small>📄 No existing records found. A new CSV will be created on first submission.</small>
+                </div>
+            `;
+        }
     }
 
     bindEvents() {
@@ -114,6 +179,10 @@ class OnboardingForm {
         // Validate file type
         if (!file.name.endsWith('.csv')) {
             this.showNotification('Please select a valid CSV file', 'error');
+            const statusDiv = document.getElementById('csvUploadStatus');
+            if (statusDiv) {
+                statusDiv.innerHTML = '<div class="alert alert-danger">❌ Invalid file type. Please select a .csv file</div>';
+            }
             return;
         }
 
@@ -122,16 +191,50 @@ class OnboardingForm {
             try {
                 this.existingCSVData = e.target.result;
                 this.existingCSVFileName = file.name;
-                this.showNotification(`CSV file loaded: ${file.name} (${this.countCSVRows(this.existingCSVData)} records found)`, 'success');
-                console.log('CSV file uploaded successfully. File size:', file.size, 'bytes');
+                const recordCount = this.countCSVRows(this.existingCSVData);
+                
+                // Save to localStorage for auto-load on next page visit
+                try {
+                    localStorage.setItem('employeeCSVData', this.existingCSVData);
+                    console.log('✓ CSV saved to localStorage for auto-load');
+                } catch (storageError) {
+                    console.warn('Could not save to localStorage:', storageError);
+                }
+                
+                // Show notification
+                this.showNotification(`✓ CSV loaded: ${file.name} (${recordCount} employee records found)`, 'success');
+                
+                // Show status message in form
+                const statusDiv = document.getElementById('csvUploadStatus');
+                if (statusDiv) {
+                    statusDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>File Loaded Successfully!</strong><br>
+                            <small>File: <strong>${file.name}</strong></small><br>
+                            <small>Existing Records: <strong>${recordCount}</strong> employees</small><br>
+                            <small style="color: #065f46;">Your new entry will be appended to this file.</small>
+                        </div>
+                    `;
+                }
+                
+                console.log('CSV file uploaded successfully. Records:', recordCount);
             } catch (error) {
                 this.showNotification('Error reading CSV file', 'error');
+                const statusDiv = document.getElementById('csvUploadStatus');
+                if (statusDiv) {
+                    statusDiv.innerHTML = '<div class="alert alert-danger">❌ Error reading file</div>';
+                }
                 console.error('CSV upload error:', error);
             }
         };
 
         reader.onerror = () => {
             this.showNotification('Error reading file', 'error');
+            const statusDiv = document.getElementById('csvUploadStatus');
+            if (statusDiv) {
+                statusDiv.innerHTML = '<div class="alert alert-danger">❌ Error reading file</div>';
+            }
         };
 
         reader.readAsText(file);
@@ -1126,11 +1229,22 @@ class OnboardingForm {
         html += `
             <div class="alert alert-success">
                 <i class="fas fa-check-circle me-2"></i>
-                All required information has been provided. Ready to download CSV.
+                All required information has been provided. Ready to save.
+            </div>
+
+            <div class="alert alert-warning">
+                <i class="fas fa-file-csv me-2"></i>
+                <strong>File Info:</strong><br>
+                ${
+                    this.existingCSVData 
+                    ? `<small>📊 Existing records: <strong>${this.countCSVRows(this.existingCSVData)}</strong><br>
+                    After saving: <strong>${this.countCSVRows(this.existingCSVData) + 1}</strong> total employees</small>`
+                    : `<small>📄 New file will be created with this employee record.</small>`
+                }
             </div>
             
             <div class="text-center mt-4">
-                <p class="text-muted">By downloading, you agree to all terms and conditions.</p>
+                <p class="text-muted">Click "Confirm & Save" to append this employee's data to Employee-Details.csv</p>
             </div>
         `;
         
@@ -1260,9 +1374,7 @@ class OnboardingForm {
    generateAndDownloadCSV() {
     try {
         const formData = this.collectFormData();
-
-        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-        const fileName = `${this.existingCSVFileName}`;
+        const fileName = this.existingCSVFileName;
 
         // ================= GET CSV CONTENT (WITH APPEND LOGIC) =================
         // appendToCSV() handles:
@@ -1285,14 +1397,34 @@ class OnboardingForm {
         // Update internal reference to reflect appended data
         this.existingCSVData = csvContent;
 
-        this.showNotification('Employee record appended and CSV downloaded successfully!', 'success');
+        // Save updated CSV to localStorage for auto-load on next page visit
+        try {
+            localStorage.setItem('employeeCSVData', csvContent);
+            console.log('✓ Updated CSV saved to localStorage');
+        } catch (storageError) {
+            console.warn('Could not save to localStorage:', storageError);
+        }
 
-        // Reset form after successful download
+        // ================= CONFIRMATION & NOTIFICATION =================
+        const totalRecords = this.countCSVRows(csvContent);
+        const message = this.existingCSVData 
+            ? `✓ Employee data saved! Total records: ${totalRecords}`
+            : `✓ New Employee-Details.csv created with 1 record`;
+        
+        this.showNotification(message, 'success');
+
+        // Close modal and reset form after successful save
+        const modalElement = document.getElementById('summaryModal');
+        if (modalElement) {
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) modal.hide();
+        }
+        
         this.resetForm();
 
     } catch (error) {
         console.error(error);
-        this.showNotification('Error generating CSV', 'error');
+        this.showNotification('Error saving employee data to CSV', 'error');
     }
 }
 
@@ -1410,6 +1542,18 @@ escapeCSV(value) {
         const form = document.getElementById('onboardingForm');
         if (form) {
             form.reset();
+        }
+        
+        // Clear CSV file input
+        const csvFileInput = document.getElementById('csvFileInput');
+        if (csvFileInput) {
+            csvFileInput.value = '';
+        }
+        
+        // Clear CSV upload status message
+        const csvUploadStatus = document.getElementById('csvUploadStatus');
+        if (csvUploadStatus) {
+            csvUploadStatus.innerHTML = '';
         }
         
         this.currentSection = 1;
