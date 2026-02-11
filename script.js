@@ -16,6 +16,7 @@ class OnboardingForm {
     init() {
         console.log('Initializing Onboarding Form...');
         this.bindEvents();
+        this.syncExperienceCounter();
         this.initializeStateDistricts();
         this.loadEducationData();
         this.loadUniversityData();
@@ -779,6 +780,27 @@ class OnboardingForm {
         this.experienceCount++;
     }
 
+    syncExperienceCounter() {
+        const entries = document.querySelectorAll('#experienceContainer .experience-entry');
+        if (entries.length === 0) {
+            this.experienceCount = 0;
+            return;
+        }
+
+        let maxIndex = -1;
+        entries.forEach((entry) => {
+            const indexedField = entry.querySelector('[data-index]');
+            if (!indexedField) return;
+
+            const indexValue = Number(indexedField.dataset.index);
+            if (!Number.isNaN(indexValue) && indexValue > maxIndex) {
+                maxIndex = indexValue;
+            }
+        });
+
+        this.experienceCount = maxIndex + 1;
+    }
+
     removeEducationEntry(index) {
         const entries = document.querySelectorAll('.education-entry');
         if (entries.length === 1) {
@@ -827,7 +849,8 @@ class OnboardingForm {
             if (show) {
                 container.style.display = 'block';
                 addBtn.style.display = 'block';
-                if (this.experienceCount === 0) {
+                const existingEntries = container.querySelectorAll('.experience-entry').length;
+                if (existingEntries === 0) {
                     this.addExperienceEntry();
                 }
             } else {
@@ -1268,20 +1291,7 @@ class OnboardingForm {
         }
 
         const formData = this.collectFormData();
-        const apiBaseUrl = (window.API_BASE_URL || '').replace(/\/$/, '');
-        const response = await fetch(`${apiBaseUrl}/api/employees`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(formData)
-        });
-
-        const result = await response.json().catch(() => ({}));
-
-        if (!response.ok || !result.success) {
-            throw new Error(result.message || 'Failed to save employee data');
-        }
+        await this.submitEmployeeData(formData);
 
         const modalElement = document.getElementById('summaryModal');
         if (modalElement) {
@@ -1303,6 +1313,49 @@ class OnboardingForm {
         }
     }
 }
+
+    async submitEmployeeData(formData) {
+        const configuredBase = (window.API_BASE_URL || '').replace(/\/$/, '');
+        const originsToTry = [];
+
+        if (configuredBase) {
+            originsToTry.push(configuredBase);
+        }
+
+        originsToTry.push(window.location.origin);
+
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            originsToTry.push('http://localhost:3001');
+            originsToTry.push('http://127.0.0.1:3001');
+        }
+
+        const uniqueOrigins = [...new Set(originsToTry)];
+        let lastErrorMessage = 'Failed to save employee data';
+
+        for (const origin of uniqueOrigins) {
+            try {
+                const response = await fetch(`${origin}/api/employees`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json().catch(() => ({}));
+
+                if (response.ok && result.success) {
+                    return;
+                }
+
+                lastErrorMessage = result.message || `Request failed at ${origin}`;
+            } catch (error) {
+                lastErrorMessage = error.message || `Unable to connect to ${origin}`;
+            }
+        }
+
+        throw new Error(lastErrorMessage);
+    }
 
 
 
