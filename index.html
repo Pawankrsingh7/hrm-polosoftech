@@ -37,7 +37,7 @@
           </p>
           <div class="alert alert-info d-flex align-items-center">
             <i class="fas fa-info-circle me-2"></i>
-            <small>Form data will be exported as CSV after submission</small>
+            <small>Form data will be stored in Excel after submission</small>
           </div>
 
          
@@ -1236,9 +1236,9 @@
     >
       <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-          <div class="modal-header bg-success text-white">
+          <div class="modal-header bg-primary text-white">
             <h5 class="modal-title" id="summaryModalLabel">
-              <i class="fas fa-check-circle me-2"></i>Confirm & Save Employee Data
+              <i class="fas fa-file-alt me-2"></i>Review Your Application
             </h5>
             <button
               type="button"
@@ -1247,16 +1247,8 @@
               aria-label="Close"
             ></button>
           </div>
-          <div class="modal-body">
-            <div class="alert alert-info mb-3">
-              <i class="fas fa-info-circle me-2"></i>
-              <strong>Saving to:</strong> Employee-Detials.csv
-              <br>
-              <small>Your data will be appended to the existing employee records without losing any information.</small>
-            </div>
-            <div id="summaryContent">
-              <!-- Summary content will be loaded here -->
-            </div>
+          <div class="modal-body" id="summaryContent">
+            <!-- Summary content will be loaded here -->
           </div>
           <div class="modal-footer">
             <button
@@ -1264,14 +1256,14 @@
               class="btn btn-secondary"
               data-bs-dismiss="modal"
             >
-              <i class="fas fa-pencil me-1"></i>Edit Details
+              <i class="fas fa-edit me-1"></i>Edit Application
             </button>
             <button
               type="button"
-              class="btn btn-success"
-              onclick="onboardingForm.generateAndDownloadCSV()"
+              class="btn btn-primary"
+              onclick="onboardingForm.submitApplication(this)"
             >
-              <i class="fas fa-save me-1"></i>Confirm & Save
+              <i class="fas fa-paper-plane me-1"></i>Submit
             </button>
           </div>
         </div>

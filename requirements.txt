@@ -1,0 +1,10 @@
+# This project is Node.js-based (not Python).
+# Render will use package.json for dependency installation.
+#
+# Runtime requirements:
+node>=20
+npm>=10
+
+# App dependencies (managed in package.json):
+express@^4.21.2
+exceljs@^4.4.0
