@@ -2,6 +2,7 @@
 const ExcelJS = require('exceljs');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -9,6 +10,11 @@ const PORT = process.env.PORT || 3001;
 const DATA_DIR = path.join(__dirname, 'data');
 const EXCEL_FILE_PATH = path.join(DATA_DIR, 'employee_data.xlsx');
 const SHEET_NAME = 'Employees';
+
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET || 'change-this-secret-in-production';
+const ADMIN_TOKEN_TTL_SECONDS = 60 * 60 * 12; // 12 hours
 
 const HEADERS = [
     'Salutation',
@@ -69,13 +75,98 @@ app.use(express.json({ limit: '2mb' }));
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (req.method === 'OPTIONS') {
         return res.sendStatus(204);
     }
     return next();
 });
 app.use(express.static(__dirname));
+
+function toBase64Url(value) {
+    return Buffer.from(value).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function fromBase64Url(value) {
+    const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((value.length + 3) % 4);
+    return Buffer.from(padded, 'base64').toString('utf8');
+}
+
+function signToken(payloadObject) {
+    const payload = JSON.stringify(payloadObject);
+    const payloadEncoded = toBase64Url(payload);
+    const signature = crypto.createHmac('sha256', ADMIN_TOKEN_SECRET).update(payloadEncoded).digest('hex');
+    return `${payloadEncoded}.${signature}`;
+}
+
+function verifyToken(token) {
+    if (!token || typeof token !== 'string' || !token.includes('.')) {
+        return null;
+    }
+
+    const [payloadEncoded, signature] = token.split('.');
+    if (!payloadEncoded || !signature) {
+        return null;
+    }
+
+    const expectedSignature = crypto.createHmac('sha256', ADMIN_TOKEN_SECRET).update(payloadEncoded).digest('hex');
+    if (signature.length !== expectedSignature.length) {
+        return null;
+    }
+
+    const providedBuffer = Buffer.from(signature, 'utf8');
+    const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+    if (!crypto.timingSafeEqual(providedBuffer, expectedBuffer)) {
+        return null;
+    }
+
+    try {
+        const payload = JSON.parse(fromBase64Url(payloadEncoded));
+        if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) {
+            return null;
+        }
+        return payload;
+    } catch (_error) {
+        return null;
+    }
+}
+
+function requireAdminAuth(req, res, next) {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    const payload = verifyToken(token);
+
+    if (!payload) {
+        return res.status(401).json({
+            success: false,
+            message: 'Unauthorized'
+        });
+    }
+
+    req.admin = payload;
+    return next();
+}
+
+function normalizeCellValue(cellValue) {
+    if (cellValue === null || cellValue === undefined) {
+        return '';
+    }
+
+    if (cellValue instanceof Date) {
+        return cellValue.toISOString().slice(0, 10);
+    }
+
+    if (typeof cellValue === 'object') {
+        if (Object.prototype.hasOwnProperty.call(cellValue, 'result')) {
+            return String(cellValue.result || '');
+        }
+        if (Object.prototype.hasOwnProperty.call(cellValue, 'text')) {
+            return String(cellValue.text || '');
+        }
+    }
+
+    return String(cellValue);
+}
 
 let isWriting = false;
 const writeQueue = [];
@@ -258,8 +349,129 @@ async function appendEmployeeToWorkbook(formData) {
     };
 }
 
+async function readWorkbookEntries() {
+    ensureDataDirectory();
+
+    if (!fs.existsSync(EXCEL_FILE_PATH)) {
+        return {
+            headers: HEADERS,
+            rows: []
+        };
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(EXCEL_FILE_PATH);
+
+    const sheet = workbook.getWorksheet(SHEET_NAME);
+    if (!sheet || sheet.rowCount === 0) {
+        return {
+            headers: HEADERS,
+            rows: []
+        };
+    }
+
+    const firstRow = sheet.getRow(1);
+    const headers = [];
+    for (let i = 1; i <= HEADERS.length; i += 1) {
+        headers.push(normalizeCellValue(firstRow.getCell(i).value) || HEADERS[i - 1]);
+    }
+
+    const rows = [];
+    for (let rowIndex = 2; rowIndex <= sheet.rowCount; rowIndex += 1) {
+        const row = sheet.getRow(rowIndex);
+        const rowObject = {};
+        let hasAnyValue = false;
+
+        for (let colIndex = 1; colIndex <= headers.length; colIndex += 1) {
+            const cellValue = normalizeCellValue(row.getCell(colIndex).value);
+            if (cellValue !== '') {
+                hasAnyValue = true;
+            }
+            rowObject[headers[colIndex - 1]] = cellValue;
+        }
+
+        if (hasAnyValue) {
+            rows.push(rowObject);
+        }
+    }
+
+    return { headers, rows };
+}
+
 app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
+});
+
+app.get('/admin/login', (_req, res) => {
+    res.sendFile(path.join(__dirname, 'admin-login.html'));
+});
+
+app.get('/admin/dashboard', (_req, res) => {
+    res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
+app.post('/api/admin/login', (req, res) => {
+    const { username, password } = req.body || {};
+
+    if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid username or password'
+        });
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const token = signToken({
+        username,
+        role: 'admin',
+        iat: now,
+        exp: now + ADMIN_TOKEN_TTL_SECONDS
+    });
+
+    return res.json({
+        success: true,
+        token,
+        expiresInSeconds: ADMIN_TOKEN_TTL_SECONDS
+    });
+});
+
+app.get('/api/admin/me', requireAdminAuth, (req, res) => {
+    res.json({
+        success: true,
+        admin: {
+            username: req.admin.username,
+            role: req.admin.role
+        }
+    });
+});
+
+app.get('/api/admin/entries', requireAdminAuth, async (_req, res) => {
+    try {
+        const { headers, rows } = await readWorkbookEntries();
+        return res.json({
+            success: true,
+            headers,
+            rows,
+            totalRows: rows.length
+        });
+    } catch (error) {
+        console.error('Failed to read entries:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to read Excel data'
+        });
+    }
+});
+
+app.get('/api/admin/download-excel', requireAdminAuth, (req, res) => {
+    if (!fs.existsSync(EXCEL_FILE_PATH)) {
+        return res.status(404).json({
+            success: false,
+            message: 'No Excel file found yet'
+        });
+    }
+
+    return res.download(EXCEL_FILE_PATH, 'employee_data.xlsx');
 });
 
 app.post('/api/employees', async (req, res) => {
@@ -295,4 +507,5 @@ app.post('/api/employees', async (req, res) => {
 app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
     console.log(`Excel output path: ${EXCEL_FILE_PATH}`);
+    console.log(`Admin login: http://localhost:${PORT}/admin/login`);
 });
