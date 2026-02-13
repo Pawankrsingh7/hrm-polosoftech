@@ -1301,7 +1301,7 @@ class OnboardingForm {
             }
         }
 
-        this.showNotification('Application submitted and saved to Excel successfully!', 'success');
+        this.showNotification('Application submitted and saved successfully!', 'success');
         this.resetForm();
     } catch (error) {
         console.error('Submission error:', error);

@@ -1,16 +1,12 @@
 ﻿const express = require('express');
 const ExcelJS = require('exceljs');
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const DATA_DIR = path.join(__dirname, 'data');
-const EXCEL_FILE_PATH = path.join(DATA_DIR, 'employee_data.xlsx');
 const SHEET_NAME = 'Employees';
-
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET || 'change-this-secret-in-production';
@@ -21,7 +17,7 @@ const HEADERS = [
     'First Name',
     'Last Name',
     'Full Name',
-    "Father\'s Name",
+    "Father's Name",
     'Date of Joining',
     'Contact Number',
     'Email Address',
@@ -70,6 +66,33 @@ const HEADERS = [
     'CTC (Annual)',
     'Reason for Leaving'
 ];
+
+function getDbConfig() {
+    const sslDisabled = String(process.env.PGSSL || '').toLowerCase() === 'false' ||
+        String(process.env.PGSSLMODE || '').toLowerCase() === 'disable';
+
+    if (process.env.DATABASE_URL) {
+        return {
+            connectionString: process.env.DATABASE_URL,
+            ssl: sslDisabled ? false : { rejectUnauthorized: false }
+        };
+    }
+
+    return {
+        host: process.env.PGHOST || 'localhost',
+        port: Number(process.env.PGPORT || 5432),
+        user: process.env.PGUSER || 'postgres',
+        password: process.env.PGPASSWORD || '',
+        database: process.env.PGDATABASE || 'TeamDesk-db',
+        ssl: sslDisabled ? false : undefined
+    };
+}
+
+const pool = new Pool(getDbConfig());
+
+function hashPassword(password) {
+    return crypto.createHash('sha256').update(String(password)).digest('hex');
+}
 
 app.use(express.json({ limit: '2mb' }));
 app.use((req, res, next) => {
@@ -145,83 +168,6 @@ function requireAdminAuth(req, res, next) {
 
     req.admin = payload;
     return next();
-}
-
-function normalizeCellValue(cellValue) {
-    if (cellValue === null || cellValue === undefined) {
-        return '';
-    }
-
-    if (cellValue instanceof Date) {
-        return cellValue.toISOString().slice(0, 10);
-    }
-
-    if (typeof cellValue === 'object') {
-        if (Object.prototype.hasOwnProperty.call(cellValue, 'result')) {
-            return String(cellValue.result || '');
-        }
-        if (Object.prototype.hasOwnProperty.call(cellValue, 'text')) {
-            return String(cellValue.text || '');
-        }
-    }
-
-    return String(cellValue);
-}
-
-let isWriting = false;
-const writeQueue = [];
-
-function queueWrite(task) {
-    return new Promise((resolve, reject) => {
-        writeQueue.push({ task, resolve, reject });
-        processWriteQueue();
-    });
-}
-
-async function processWriteQueue() {
-    if (isWriting || writeQueue.length === 0) {
-        return;
-    }
-
-    isWriting = true;
-    const job = writeQueue.shift();
-
-    try {
-        const result = await job.task();
-        job.resolve(result);
-    } catch (error) {
-        job.reject(error);
-    } finally {
-        isWriting = false;
-        processWriteQueue();
-    }
-}
-
-function ensureDataDirectory() {
-    if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-}
-
-async function loadWorkbook() {
-    ensureDataDirectory();
-
-    const workbook = new ExcelJS.Workbook();
-    if (fs.existsSync(EXCEL_FILE_PATH)) {
-        await workbook.xlsx.readFile(EXCEL_FILE_PATH);
-    }
-
-    let sheet = workbook.getWorksheet(SHEET_NAME);
-    if (!sheet) {
-        sheet = workbook.addWorksheet(SHEET_NAME);
-    }
-
-    if (sheet.rowCount === 0) {
-        const headerRow = sheet.addRow(HEADERS);
-        headerRow.font = { bold: true };
-    }
-
-    return { workbook, sheet };
 }
 
 function buildRow(formData, eduIndex, expIndex, includeMainData) {
@@ -333,105 +279,136 @@ function buildRows(formData) {
     return rows;
 }
 
-async function appendEmployeeToWorkbook(formData) {
-    const { workbook, sheet } = await loadWorkbook();
-    const rows = buildRows(formData);
+function rowsToObjects(rows2D) {
+    return rows2D.map((row) => {
+        const obj = {};
+        HEADERS.forEach((header, index) => {
+            obj[header] = row[index] || '';
+        });
+        return obj;
+    });
+}
 
-    rows.forEach((row) => {
-        sheet.addRow(row);
+async function initDatabase() {
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS employee_submissions (
+            id BIGSERIAL PRIMARY KEY,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            form_data JSONB NOT NULL
+        )
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS admin_users (
+            username TEXT PRIMARY KEY,
+            password_hash TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    `);
+
+    await pool.query(
+        `
+        INSERT INTO admin_users (username, password_hash)
+        VALUES ($1, $2)
+        ON CONFLICT (username) DO NOTHING
+        `,
+        [ADMIN_USERNAME, hashPassword(ADMIN_PASSWORD)]
+    );
+}
+
+async function getAdminByUsername(username) {
+    const result = await pool.query(
+        `SELECT username, password_hash FROM admin_users WHERE username = $1 LIMIT 1`,
+        [username]
+    );
+    return result.rows[0] || null;
+}
+
+async function saveSubmission(formData) {
+    const query = `
+        INSERT INTO employee_submissions (form_data)
+        VALUES ($1::jsonb)
+        RETURNING id, created_at
+    `;
+    const result = await pool.query(query, [JSON.stringify(formData)]);
+    return result.rows[0];
+}
+
+async function fetchAllSubmissions() {
+    const query = `
+        SELECT id, created_at, form_data
+        FROM employee_submissions
+        ORDER BY id ASC
+    `;
+    const result = await pool.query(query);
+    return result.rows;
+}
+
+async function getFlattenedEntries() {
+    const submissions = await fetchAllSubmissions();
+    const allRowObjects = [];
+
+    submissions.forEach((submission) => {
+        const formData = submission.form_data || {};
+        const rows = buildRows(formData);
+        const rowObjects = rowsToObjects(rows);
+        allRowObjects.push(...rowObjects);
     });
 
-    await workbook.xlsx.writeFile(EXCEL_FILE_PATH);
-
     return {
-        rowsAdded: rows.length,
-        filePath: EXCEL_FILE_PATH
+        headers: HEADERS,
+        rows: allRowObjects
     };
 }
 
-async function readWorkbookEntries() {
-    ensureDataDirectory();
-
-    if (!fs.existsSync(EXCEL_FILE_PATH)) {
-        return {
-            headers: HEADERS,
-            rows: []
-        };
+app.get('/api/health', async (_req, res) => {
+    try {
+        await pool.query('SELECT 1');
+        return res.json({ ok: true, database: 'connected' });
+    } catch (_error) {
+        return res.status(500).json({ ok: false, database: 'disconnected' });
     }
-
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(EXCEL_FILE_PATH);
-
-    const sheet = workbook.getWorksheet(SHEET_NAME);
-    if (!sheet || sheet.rowCount === 0) {
-        return {
-            headers: HEADERS,
-            rows: []
-        };
-    }
-
-    const firstRow = sheet.getRow(1);
-    const headers = [];
-    for (let i = 1; i <= HEADERS.length; i += 1) {
-        headers.push(normalizeCellValue(firstRow.getCell(i).value) || HEADERS[i - 1]);
-    }
-
-    const rows = [];
-    for (let rowIndex = 2; rowIndex <= sheet.rowCount; rowIndex += 1) {
-        const row = sheet.getRow(rowIndex);
-        const rowObject = {};
-        let hasAnyValue = false;
-
-        for (let colIndex = 1; colIndex <= headers.length; colIndex += 1) {
-            const cellValue = normalizeCellValue(row.getCell(colIndex).value);
-            if (cellValue !== '') {
-                hasAnyValue = true;
-            }
-            rowObject[headers[colIndex - 1]] = cellValue;
-        }
-
-        if (hasAnyValue) {
-            rows.push(rowObject);
-        }
-    }
-
-    return { headers, rows };
-}
-
-app.get('/api/health', (_req, res) => {
-    res.json({ ok: true });
 });
 
 app.get('/admin/login', (_req, res) => {
-    res.sendFile(path.join(__dirname, 'admin-login.html'));
+    res.sendFile(require('path').join(__dirname, 'admin-login.html'));
 });
 
 app.get('/admin/dashboard', (_req, res) => {
-    res.sendFile(path.join(__dirname, 'admin.html'));
+    res.sendFile(require('path').join(__dirname, 'admin.html'));
 });
 
 app.post('/api/admin/login', (req, res) => {
-    const { username, password } = req.body || {};
+    (async () => {
+        const { username, password } = req.body || {};
+        const admin = await getAdminByUsername(username);
 
-    if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
-        return res.status(401).json({
-            success: false,
-            message: 'Invalid username or password'
+        if (!admin || admin.password_hash !== hashPassword(password)) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid username or password'
+            });
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+        const token = signToken({
+            username: admin.username,
+            role: 'admin',
+            iat: now,
+            exp: now + ADMIN_TOKEN_TTL_SECONDS
         });
-    }
 
-    const now = Math.floor(Date.now() / 1000);
-    const token = signToken({
-        username,
-        role: 'admin',
-        iat: now,
-        exp: now + ADMIN_TOKEN_TTL_SECONDS
-    });
-
-    return res.json({
-        success: true,
-        token,
-        expiresInSeconds: ADMIN_TOKEN_TTL_SECONDS
+        return res.json({
+            success: true,
+            token,
+            expiresInSeconds: ADMIN_TOKEN_TTL_SECONDS
+        });
+    })().catch((error) => {
+        console.error('Admin login failed:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Login failed'
+        });
     });
 });
 
@@ -447,7 +424,7 @@ app.get('/api/admin/me', requireAdminAuth, (req, res) => {
 
 app.get('/api/admin/entries', requireAdminAuth, async (_req, res) => {
     try {
-        const { headers, rows } = await readWorkbookEntries();
+        const { headers, rows } = await getFlattenedEntries();
         return res.json({
             success: true,
             headers,
@@ -458,20 +435,38 @@ app.get('/api/admin/entries', requireAdminAuth, async (_req, res) => {
         console.error('Failed to read entries:', error);
         return res.status(500).json({
             success: false,
-            message: 'Failed to read Excel data'
+            message: 'Failed to read data from database'
         });
     }
 });
 
-app.get('/api/admin/download-excel', requireAdminAuth, (req, res) => {
-    if (!fs.existsSync(EXCEL_FILE_PATH)) {
-        return res.status(404).json({
+app.get('/api/admin/download-excel', requireAdminAuth, async (_req, res) => {
+    try {
+        const { rows } = await getFlattenedEntries();
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet(SHEET_NAME);
+
+        worksheet.addRow(HEADERS);
+        rows.forEach((rowObj) => {
+            worksheet.addRow(HEADERS.map((header) => rowObj[header] || ''));
+        });
+
+        const headerRow = worksheet.getRow(1);
+        headerRow.font = { bold: true };
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="employee_data.xlsx"');
+
+        await workbook.xlsx.write(res);
+        return res.end();
+    } catch (error) {
+        console.error('Failed to download excel:', error);
+        return res.status(500).json({
             success: false,
-            message: 'No Excel file found yet'
+            message: 'Failed to generate Excel file'
         });
     }
-
-    return res.download(EXCEL_FILE_PATH, 'employee_data.xlsx');
 });
 
 app.post('/api/employees', async (req, res) => {
@@ -487,25 +482,35 @@ app.post('/api/employees', async (req, res) => {
             });
         }
 
-        const result = await queueWrite(() => appendEmployeeToWorkbook(formData));
+        const saved = await saveSubmission(formData);
 
         return res.status(201).json({
             success: true,
-            message: 'Employee data saved to Excel successfully',
-            rowsAdded: result.rowsAdded,
-            file: path.basename(result.filePath)
+            message: 'Employee data saved to database successfully',
+            submissionId: saved.id,
+            createdAt: saved.created_at
         });
     } catch (error) {
         console.error('Failed to save employee data:', error);
         return res.status(500).json({
             success: false,
-            message: 'Failed to save employee data to Excel'
+            message: 'Failed to save employee data to database'
         });
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-    console.log(`Excel output path: ${EXCEL_FILE_PATH}`);
-    console.log(`Admin login: http://localhost:${PORT}/admin/login`);
-});
+async function startServer() {
+    try {
+        await initDatabase();
+        app.listen(PORT, () => {
+            console.log(`Server running at http://localhost:${PORT}`);
+            console.log(`Database connected`);
+            console.log(`Admin login: http://localhost:${PORT}/admin/login`);
+        });
+    } catch (error) {
+        console.error('Failed to initialize database:', error);
+        process.exit(1);
+    }
+}
+
+startServer();
