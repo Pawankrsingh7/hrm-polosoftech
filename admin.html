@@ -11,7 +11,7 @@
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       }
       .page-wrap {
-        max-width: 1400px;
+        max-width: 1300px;
         margin: 24px auto;
         padding: 0 12px;
       }
@@ -22,7 +22,7 @@
         box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
       }
       .table-responsive {
-        max-height: 72vh;
+        max-height: 74vh;
       }
       th {
         white-space: nowrap;
@@ -33,6 +33,72 @@
       }
       td {
         white-space: nowrap;
+        vertical-align: middle;
+      }
+      .dept-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        background: #e6fffa;
+        color: #0f766e;
+      }
+      .details-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        padding: 16px;
+      }
+      .details-overlay.show {
+        display: flex;
+      }
+      .details-card {
+        width: 100%;
+        max-width: 1000px;
+        max-height: 88vh;
+        overflow: auto;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+      }
+      .details-header {
+        padding: 14px 18px;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .details-body {
+        padding: 18px;
+      }
+      .detail-section {
+        margin-bottom: 16px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+      }
+      .detail-section h6 {
+        margin: 0;
+        padding: 10px 12px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        font-weight: 600;
+      }
+      .detail-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+        gap: 8px;
+        padding: 12px;
+      }
+      .detail-item {
+        font-size: 13px;
+        color: #0f172a;
+      }
+      .detail-item strong {
+        color: #334155;
       }
     </style>
   </head>
@@ -41,7 +107,7 @@
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <div>
           <h4 class="mb-1">Admin Dashboard</h4>
-          <small class="text-muted">Employee submissions in table format</small>
+          <small class="text-muted">Employee submissions</small>
         </div>
         <div class="d-flex gap-2">
           <button id="refreshBtn" class="btn btn-outline-primary">Refresh</button>
@@ -58,15 +124,34 @@
         </div>
         <div class="table-responsive">
           <table class="table table-bordered table-hover table-sm" id="dataTable">
-            <thead id="tableHead"></thead>
+            <thead>
+              <tr>
+                <th>Full Name</th>
+                <th>Email</th>
+                <th>Department</th>
+                <th>Designation</th>
+                <th>Action</th>
+              </tr>
+            </thead>
             <tbody id="tableBody"></tbody>
           </table>
         </div>
       </div>
     </div>
 
+    <div class="details-overlay" id="detailsOverlay">
+      <div class="details-card">
+        <div class="details-header">
+          <h5 class="mb-0" id="detailsTitle">Employee Details</h5>
+          <button class="btn btn-sm btn-outline-secondary" id="closeDetailsBtn">Close</button>
+        </div>
+        <div class="details-body" id="detailsBody"></div>
+      </div>
+    </div>
+
     <script>
       const TOKEN_KEY = 'adminAuthToken';
+      let submissionRows = [];
 
       function getToken() {
         return localStorage.getItem(TOKEN_KEY);
@@ -82,6 +167,15 @@
       function clearStatus() {
         const box = document.getElementById('statusBox');
         box.classList.add('d-none');
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
       }
 
       async function ensureAuth() {
@@ -104,46 +198,159 @@
         return token;
       }
 
-      function renderTable(headers, rows) {
-        const headEl = document.getElementById('tableHead');
+      function renderTable(rows) {
         const bodyEl = document.getElementById('tableBody');
-
-        headEl.innerHTML = '';
         bodyEl.innerHTML = '';
 
-        if (!headers || headers.length === 0) {
-          bodyEl.innerHTML = '<tr><td class="text-center">No data found</td></tr>';
-          return;
-        }
-
-        const headRow = document.createElement('tr');
-        headers.forEach((header) => {
-          const th = document.createElement('th');
-          th.textContent = header;
-          headRow.appendChild(th);
-        });
-        headEl.appendChild(headRow);
-
         if (!rows || rows.length === 0) {
-          const emptyRow = document.createElement('tr');
-          const emptyCell = document.createElement('td');
-          emptyCell.colSpan = headers.length;
-          emptyCell.className = 'text-center text-muted';
-          emptyCell.textContent = 'No records available';
-          emptyRow.appendChild(emptyCell);
-          bodyEl.appendChild(emptyRow);
+          bodyEl.innerHTML = `
+            <tr>
+              <td colspan="5" class="text-center text-muted">No records available</td>
+            </tr>
+          `;
           return;
         }
 
-        rows.forEach((row) => {
+        rows.forEach((row, index) => {
           const tr = document.createElement('tr');
-          headers.forEach((header) => {
-            const td = document.createElement('td');
-            td.textContent = row[header] || '';
-            tr.appendChild(td);
-          });
+          tr.innerHTML = `
+            <td>${escapeHtml(row.fullName || '-')}</td>
+            <td>${escapeHtml(row.email || '-')}</td>
+            <td><span class="dept-badge">${escapeHtml(row.department || '-')}</span></td>
+            <td>${escapeHtml(row.designation || '-')}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-secondary" data-index="${index}" data-action="details">
+                See Details
+              </button>
+            </td>
+          `;
           bodyEl.appendChild(tr);
         });
+      }
+
+      function sectionTemplate(title, items) {
+        const content = items
+          .map(({ label, value }) => `<div class="detail-item"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value || '-')}</div>`)
+          .join('');
+
+        return `
+          <div class="detail-section">
+            <h6>${escapeHtml(title)}</h6>
+            <div class="detail-grid">${content}</div>
+          </div>
+        `;
+      }
+
+      function renderDetails(entry) {
+        const formData = entry?.formData || {};
+        const personal = formData.personal || {};
+        const company = formData.company || {};
+        const address = formData.address || {};
+        const identification = formData.identification || {};
+        const other = formData.other || {};
+        const education = Array.isArray(formData.education) ? formData.education : [];
+        const experience = Array.isArray(formData.experience) ? formData.experience : [];
+
+        const title = document.getElementById('detailsTitle');
+        const body = document.getElementById('detailsBody');
+
+        title.textContent = personal.fullName || `${personal.firstName || ''} ${personal.lastName || ''}`.trim() || 'Employee Details';
+
+        let html = '';
+        html += sectionTemplate('Personal', [
+          { label: 'Salutation', value: personal.salutation },
+          { label: 'First Name', value: personal.firstName },
+          { label: 'Last Name', value: personal.lastName },
+          { label: 'Full Name', value: personal.fullName },
+          { label: "Father's Name", value: personal.fatherName },
+          { label: 'Date of Joining', value: personal.dateOfJoining },
+          { label: 'Contact Number', value: personal.contactNumber },
+          { label: 'Email Address', value: personal.emailAddress },
+          { label: 'Gender', value: personal.gender },
+          { label: 'Marital Status', value: personal.maritalStatus },
+          { label: 'Date of Birth', value: personal.dateOfBirth },
+          { label: 'Blood Group', value: personal.bloodGroup }
+        ]);
+
+        html += sectionTemplate('Company', [
+          { label: 'Branch', value: company.branch },
+          { label: 'Department', value: company.department },
+          { label: 'Designation', value: company.designation },
+          { label: 'Report To', value: company.reportTo }
+        ]);
+
+        html += sectionTemplate('Address', [
+          { label: 'Personal Email', value: address.personalEmail },
+          { label: 'Company Email', value: address.companyEmail },
+          { label: 'Current Address', value: address.currentAddress },
+          { label: 'Permanent Address', value: address.permanentAddress },
+          { label: 'Country', value: address.country },
+          { label: 'State', value: address.state },
+          { label: 'District', value: address.district },
+          { label: 'City', value: address.city },
+          { label: 'Pincode', value: address.pincode }
+        ]);
+
+        html += sectionTemplate('Identification', [
+          { label: 'Aadhar Number', value: identification.aadharNumber },
+          { label: 'PAN Number', value: identification.panNumber },
+          { label: 'Passport Number', value: identification.passportNumber }
+        ]);
+
+        html += sectionTemplate('Other Information', [
+          { label: 'Previous Interview', value: other.previousInterview },
+          { label: 'Previous Interview Details', value: other.previousInterviewDetails },
+          { label: 'Criminal Case', value: other.criminalCase },
+          { label: 'Criminal Case Details', value: other.criminalCaseDetails },
+          { label: 'Disability', value: other.disability },
+          { label: 'Disability Details', value: other.disabilityDetails },
+          { label: 'E-Signature', value: other.esignature },
+          { label: 'Signature Date', value: other.signatureDate },
+          { label: 'Signature Place', value: other.signaturePlace }
+        ]);
+
+        const educationHtml = education.length
+          ? education
+              .map((edu, idx) => sectionTemplate(`Education ${idx + 1}`, [
+                { label: 'Education Level', value: edu.level },
+                { label: 'Qualification', value: edu.qualification },
+                { label: 'Year of Passing', value: edu.yearOfPassing },
+                { label: 'Institute Name', value: edu.instituteName },
+                { label: 'Board/University', value: edu.boardUniversity },
+                { label: 'Percentage', value: edu.percentage },
+                { label: 'Specialization', value: edu.specialization }
+              ]))
+              .join('')
+          : sectionTemplate('Education', [{ label: 'Details', value: 'No education details provided' }]);
+
+        const experienceHtml = experience.length
+          ? experience
+              .map((exp, idx) => sectionTemplate(`Experience ${idx + 1}`, [
+                { label: 'Company', value: exp.company },
+                { label: 'Designation', value: exp.designation },
+                { label: 'From Date', value: exp.fromDate },
+                { label: 'To Date', value: exp.toDate },
+                { label: 'Company Address', value: exp.experienceAddress },
+                { label: 'Company Contact', value: exp.companyContact },
+                { label: 'CTC', value: exp.ctc },
+                { label: 'Reason for Leaving', value: exp.reasonForLeaving }
+              ]))
+              .join('')
+          : sectionTemplate('Experience', [{ label: 'Details', value: 'No experience details provided' }]);
+
+        body.innerHTML = html + educationHtml + experienceHtml;
+      }
+
+      function openDetails(index) {
+        const entry = submissionRows[index];
+        if (!entry) return;
+
+        renderDetails(entry);
+        document.getElementById('detailsOverlay').classList.add('show');
+      }
+
+      function closeDetails() {
+        document.getElementById('detailsOverlay').classList.remove('show');
       }
 
       async function loadEntries() {
@@ -152,7 +359,7 @@
         if (!token) return;
 
         try {
-          const response = await fetch('/api/admin/entries', {
+          const response = await fetch('/api/admin/submissions', {
             headers: { Authorization: `Bearer ${token}` }
           });
 
@@ -161,8 +368,9 @@
             throw new Error(result.message || 'Failed to fetch records');
           }
 
-          renderTable(result.headers, result.rows);
-          document.getElementById('totalRows').textContent = `Total rows: ${result.totalRows}`;
+          submissionRows = result.rows || [];
+          renderTable(submissionRows);
+          document.getElementById('totalRows').textContent = `Total rows: ${result.totalRows || 0}`;
         } catch (error) {
           showStatus(error.message || 'Error loading data', 'danger');
         }
@@ -204,6 +412,20 @@
       document.getElementById('refreshBtn').addEventListener('click', loadEntries);
       document.getElementById('downloadBtn').addEventListener('click', downloadExcel);
       document.getElementById('logoutBtn').addEventListener('click', logout);
+      document.getElementById('closeDetailsBtn').addEventListener('click', closeDetails);
+      document.getElementById('detailsOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'detailsOverlay') {
+          closeDetails();
+        }
+      });
+      document.getElementById('tableBody').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action="details"]');
+        if (!btn) return;
+        const idx = Number(btn.dataset.index);
+        if (!Number.isNaN(idx)) {
+          openDetails(idx);
+        }
+      });
 
       loadEntries();
     </script>

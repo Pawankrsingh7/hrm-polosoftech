@@ -2,6 +2,7 @@
 const ExcelJS = require('exceljs');
 const crypto = require('crypto');
 const { Pool } = require('pg');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -70,19 +71,36 @@ const HEADERS = [
 function getDbConfig() {
     const sslDisabled = String(process.env.PGSSL || '').toLowerCase() === 'false' ||
         String(process.env.PGSSLMODE || '').toLowerCase() === 'disable';
+    const fallbackPassword = process.env.PGPASSWORD !== undefined ? String(process.env.PGPASSWORD) : 'invalid-password';
 
     if (process.env.DATABASE_URL) {
-        return {
-            connectionString: process.env.DATABASE_URL,
-            ssl: sslDisabled ? false : { rejectUnauthorized: false }
-        };
+        let parsedConfig = null;
+        try {
+            const parsedUrl = new URL(process.env.DATABASE_URL);
+            parsedConfig = {
+                host: parsedUrl.hostname,
+                port: Number(parsedUrl.port || 5432),
+                user: decodeURIComponent(parsedUrl.username || process.env.PGUSER || 'postgres'),
+                password: decodeURIComponent(parsedUrl.password || fallbackPassword),
+                database: decodeURIComponent((parsedUrl.pathname || '/').replace(/^\//, '') || process.env.PGDATABASE || 'TeamDesk-db')
+            };
+        } catch (_error) {
+            parsedConfig = null;
+        }
+
+        if (parsedConfig) {
+            return {
+                ...parsedConfig,
+                ssl: sslDisabled ? false : { rejectUnauthorized: false }
+            };
+        }
     }
 
     return {
         host: process.env.PGHOST || 'localhost',
         port: Number(process.env.PGPORT || 5432),
         user: process.env.PGUSER || 'postgres',
-        password: process.env.PGPASSWORD || '',
+        password: fallbackPassword,
         database: process.env.PGDATABASE || 'TeamDesk-db',
         ssl: sslDisabled ? false : undefined
     };
@@ -344,6 +362,10 @@ async function fetchAllSubmissions() {
     return result.rows;
 }
 
+function toStringSafe(value) {
+    return value === null || value === undefined ? '' : String(value);
+}
+
 async function getFlattenedEntries() {
     const submissions = await fetchAllSubmissions();
     const allRowObjects = [];
@@ -359,6 +381,26 @@ async function getFlattenedEntries() {
         headers: HEADERS,
         rows: allRowObjects
     };
+}
+
+async function getAdminSubmissionList() {
+    const submissions = await fetchAllSubmissions();
+
+    return submissions.map((submission) => {
+        const formData = submission.form_data || {};
+        const personal = formData.personal || {};
+        const company = formData.company || {};
+
+        return {
+            id: submission.id,
+            createdAt: submission.created_at,
+            fullName: toStringSafe(personal.fullName || `${personal.firstName || ''} ${personal.lastName || ''}`.trim()),
+            email: toStringSafe(personal.emailAddress || formData.address?.personalEmail || ''),
+            department: toStringSafe(company.department || ''),
+            designation: toStringSafe(company.designation || ''),
+            formData
+        };
+    });
 }
 
 app.get('/api/health', async (_req, res) => {
@@ -440,6 +482,23 @@ app.get('/api/admin/entries', requireAdminAuth, async (_req, res) => {
     }
 });
 
+app.get('/api/admin/submissions', requireAdminAuth, async (_req, res) => {
+    try {
+        const rows = await getAdminSubmissionList();
+        return res.json({
+            success: true,
+            rows,
+            totalRows: rows.length
+        });
+    } catch (error) {
+        console.error('Failed to read submissions:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to read submissions from database'
+        });
+    }
+});
+
 app.get('/api/admin/download-excel', requireAdminAuth, async (_req, res) => {
     try {
         const { rows } = await getFlattenedEntries();
@@ -509,8 +568,12 @@ async function startServer() {
         });
     } catch (error) {
         console.error('Failed to initialize database:', error);
+        console.error(
+            'DB config check: set DATABASE_URL or PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD'
+        );
         process.exit(1);
     }
 }
 
 startServer();
+
