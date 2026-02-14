@@ -48,10 +48,9 @@
       }
       .details-view {
         background: #fff;
-        background: #fff;
         border-radius: 12px;
         padding: 14px;
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
       }
       .details-header-main {
         padding: 14px 18px;
@@ -95,9 +94,11 @@
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <div>
           <h4 class="mb-1">Admin Dashboard</h4>
-          <small class="text-muted">Employee submissions</small>
+          <small class="text-muted" id="viewCaption">Pending employee submissions</small>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap gap-2">
+          <button id="pendingViewBtn" class="btn btn-primary btn-sm">Employee Submissions</button>
+          <button id="verifiedViewBtn" class="btn btn-outline-primary btn-sm">Verified Employees</button>
           <button id="refreshBtn" class="btn btn-outline-primary">Refresh</button>
           <button id="downloadBtn" class="btn btn-success">Download Excel</button>
           <button id="logoutBtn" class="btn btn-outline-danger">Logout</button>
@@ -129,17 +130,21 @@
       <div class="details-view hidden" id="detailsView">
         <div class="details-header-main">
           <h5 class="mb-0" id="detailsTitle">Employee Details</h5>
-          <button class="btn btn-sm btn-outline-primary" id="backToDashboardBtn">
-            Back to Dashboard
-          </button>
+          <button class="btn btn-sm btn-outline-primary" id="backToDashboardBtn">Back to Dashboard</button>
         </div>
         <div class="details-body" id="detailsBody"></div>
+        <div class="d-flex gap-2 justify-content-end p-3 border-top" id="reviewActions">
+          <button class="btn btn-outline-danger" id="rejectBtn">Reject</button>
+          <button class="btn btn-success" id="verifyBtn">Correct</button>
+        </div>
       </div>
     </div>
 
     <script>
       const TOKEN_KEY = 'adminAuthToken';
       let submissionRows = [];
+      let currentScope = 'pending';
+      let selectedEntry = null;
 
       function getToken() {
         return localStorage.getItem(TOKEN_KEY);
@@ -164,6 +169,22 @@
           .replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;')
           .replace(/'/g, '&#039;');
+      }
+
+      function updateScopeButtons() {
+        const pendingBtn = document.getElementById('pendingViewBtn');
+        const verifiedBtn = document.getElementById('verifiedViewBtn');
+        const caption = document.getElementById('viewCaption');
+
+        if (currentScope === 'pending') {
+          pendingBtn.className = 'btn btn-primary btn-sm';
+          verifiedBtn.className = 'btn btn-outline-primary btn-sm';
+          caption.textContent = 'Pending employee submissions';
+        } else {
+          pendingBtn.className = 'btn btn-outline-primary btn-sm';
+          verifiedBtn.className = 'btn btn-primary btn-sm';
+          caption.textContent = 'Verified employee submissions';
+        }
       }
 
       async function ensureAuth() {
@@ -207,9 +228,7 @@
             <td><span class="dept-badge">${escapeHtml(row.department || '-')}</span></td>
             <td>${escapeHtml(row.designation || '-')}</td>
             <td>
-              <button class="btn btn-sm btn-outline-secondary" data-index="${index}" data-action="details">
-                See Details
-              </button>
+              <button class="btn btn-sm btn-outline-secondary" data-index="${index}" data-action="details">See Details</button>
             </td>
           `;
           bodyEl.appendChild(tr);
@@ -298,41 +317,41 @@
         ]);
 
         const educationHtml = education.length
-          ? education
-              .map((edu, idx) => sectionTemplate(`Education ${idx + 1}`, [
-                { label: 'Education Level', value: edu.level },
-                { label: 'Qualification', value: edu.qualification },
-                { label: 'Year of Passing', value: edu.yearOfPassing },
-                { label: 'Institute Name', value: edu.instituteName },
-                { label: 'Board/University', value: edu.boardUniversity },
-                { label: 'Percentage', value: edu.percentage },
-                { label: 'Specialization', value: edu.specialization }
-              ]))
-              .join('')
+          ? education.map((edu, idx) => sectionTemplate(`Education ${idx + 1}`, [
+              { label: 'Education Level', value: edu.level },
+              { label: 'Qualification', value: edu.qualification },
+              { label: 'Year of Passing', value: edu.yearOfPassing },
+              { label: 'Institute Name', value: edu.instituteName },
+              { label: 'Board/University', value: edu.boardUniversity },
+              { label: 'Percentage', value: edu.percentage },
+              { label: 'Specialization', value: edu.specialization }
+            ])).join('')
           : sectionTemplate('Education', [{ label: 'Details', value: 'No education details provided' }]);
 
         const experienceHtml = experience.length
-          ? experience
-              .map((exp, idx) => sectionTemplate(`Experience ${idx + 1}`, [
-                { label: 'Company', value: exp.company },
-                { label: 'Designation', value: exp.designation },
-                { label: 'From Date', value: exp.fromDate },
-                { label: 'To Date', value: exp.toDate },
-                { label: 'Company Address', value: exp.experienceAddress },
-                { label: 'Company Contact', value: exp.companyContact },
-                { label: 'CTC', value: exp.ctc },
-                { label: 'Reason for Leaving', value: exp.reasonForLeaving }
-              ]))
-              .join('')
+          ? experience.map((exp, idx) => sectionTemplate(`Experience ${idx + 1}`, [
+              { label: 'Company', value: exp.company },
+              { label: 'Designation', value: exp.designation },
+              { label: 'From Date', value: exp.fromDate },
+              { label: 'To Date', value: exp.toDate },
+              { label: 'Company Address', value: exp.experienceAddress },
+              { label: 'Company Contact', value: exp.companyContact },
+              { label: 'CTC', value: exp.ctc },
+              { label: 'Reason for Leaving', value: exp.reasonForLeaving }
+            ])).join('')
           : sectionTemplate('Experience', [{ label: 'Details', value: 'No experience details provided' }]);
 
         body.innerHTML = html + educationHtml + experienceHtml;
+
+        const actions = document.getElementById('reviewActions');
+        actions.classList.toggle('hidden', currentScope !== 'pending');
       }
 
       function openDetails(index) {
         const entry = submissionRows[index];
         if (!entry) return;
 
+        selectedEntry = entry;
         renderDetails(entry);
         document.getElementById('dashboardView').classList.add('hidden');
         document.getElementById('detailsView').classList.remove('hidden');
@@ -340,6 +359,7 @@
       }
 
       function showDashboard() {
+        selectedEntry = null;
         document.getElementById('detailsView').classList.add('hidden');
         document.getElementById('dashboardView').classList.remove('hidden');
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -347,11 +367,12 @@
 
       async function loadEntries() {
         clearStatus();
+        updateScopeButtons();
         const token = await ensureAuth();
         if (!token) return;
 
         try {
-          const response = await fetch('/api/admin/submissions', {
+          const response = await fetch(`/api/admin/submissions?scope=${encodeURIComponent(currentScope)}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
 
@@ -373,7 +394,7 @@
         if (!token) return;
 
         try {
-          const response = await fetch('/api/admin/download-excel', {
+          const response = await fetch(`/api/admin/download-excel?scope=${encodeURIComponent(currentScope)}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
 
@@ -386,7 +407,7 @@
           const url = window.URL.createObjectURL(blob);
           const link = document.createElement('a');
           link.href = url;
-          link.download = 'employee_data.xlsx';
+          link.download = currentScope === 'verified' ? 'verified_employee_data.xlsx' : 'employee_data.xlsx';
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
@@ -396,22 +417,86 @@
         }
       }
 
+      async function verifySelected() {
+        if (!selectedEntry) return;
+        const sure = window.confirm('Are you sure this employee data is correct?');
+        if (!sure) return;
+
+        const token = await ensureAuth();
+        if (!token) return;
+
+        try {
+          const response = await fetch(`/api/admin/submissions/${selectedEntry.id}/verify`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const result = await response.json().catch(() => ({}));
+
+          if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Failed to verify employee');
+          }
+
+          showStatus('Employee verified successfully', 'success');
+          showDashboard();
+          await loadEntries();
+        } catch (error) {
+          showStatus(error.message || 'Verification failed', 'danger');
+        }
+      }
+
+      async function rejectSelected() {
+        if (!selectedEntry) return;
+        const sure = window.confirm('Are you sure you want to reject this employee?');
+        if (!sure) return;
+
+        const token = await ensureAuth();
+        if (!token) return;
+
+        try {
+          const response = await fetch(`/api/admin/submissions/${selectedEntry.id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const result = await response.json().catch(() => ({}));
+
+          if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Failed to reject employee');
+          }
+
+          showStatus('Employee rejected and removed successfully', 'warning');
+          showDashboard();
+          await loadEntries();
+        } catch (error) {
+          showStatus(error.message || 'Rejection failed', 'danger');
+        }
+      }
+
+      function setScope(scope) {
+        if (scope !== 'pending' && scope !== 'verified') return;
+        currentScope = scope;
+        showDashboard();
+        loadEntries();
+      }
+
       function logout() {
         localStorage.removeItem(TOKEN_KEY);
         window.location.href = '/admin/login';
       }
 
+      document.getElementById('pendingViewBtn').addEventListener('click', () => setScope('pending'));
+      document.getElementById('verifiedViewBtn').addEventListener('click', () => setScope('verified'));
       document.getElementById('refreshBtn').addEventListener('click', loadEntries);
       document.getElementById('downloadBtn').addEventListener('click', downloadExcel);
       document.getElementById('logoutBtn').addEventListener('click', logout);
       document.getElementById('backToDashboardBtn').addEventListener('click', showDashboard);
+      document.getElementById('verifyBtn').addEventListener('click', verifySelected);
+      document.getElementById('rejectBtn').addEventListener('click', rejectSelected);
+
       document.getElementById('tableBody').addEventListener('click', (e) => {
         const btn = e.target.closest('button[data-action="details"]');
         if (!btn) return;
         const idx = Number(btn.dataset.index);
-        if (!Number.isNaN(idx)) {
-          openDetails(idx);
-        }
+        if (!Number.isNaN(idx)) openDetails(idx);
       });
 
       loadEntries();
