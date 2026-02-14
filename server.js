@@ -296,7 +296,7 @@ async function getAdminSubmissionList(scope) {
   });
 }
 
-async function verifySubmission(submissionId, adminUsername) {
+async function verifySubmission(submissionId, reviewerName) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -318,7 +318,7 @@ async function verifySubmission(submissionId, adminUsername) {
         INSERT INTO verified_employee_submissions (original_submission_id, created_at, verified_at, verified_by, form_data)
         VALUES ($1, $2, NOW(), $3, $4::jsonb)
       `,
-      [row.id, row.created_at, adminUsername, JSON.stringify(row.form_data)]
+      [row.id, row.created_at, reviewerName, JSON.stringify(row.form_data)]
     );
 
     await client.query('DELETE FROM employee_submissions WHERE id = $1', [submissionId]);
@@ -425,11 +425,15 @@ app.get('/api/admin/download-excel', requireAdminAuth, async (req, res) => {
 app.post('/api/admin/submissions/:id/verify', requireAdminAuth, async (req, res) => {
   try {
     const submissionId = Number(req.params.id);
+    const reviewerName = String(req.body?.reviewerName || '').trim();
     if (Number.isNaN(submissionId) || submissionId <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid submission id' });
     }
+    if (!reviewerName) {
+      return res.status(400).json({ success: false, message: 'Reviewer name is required' });
+    }
 
-    const result = await verifySubmission(submissionId, req.admin.username);
+    const result = await verifySubmission(submissionId, reviewerName);
     if (!result.found) {
       return res.status(404).json({ success: false, message: 'Submission not found or already processed' });
     }
@@ -444,8 +448,12 @@ app.post('/api/admin/submissions/:id/verify', requireAdminAuth, async (req, res)
 app.delete('/api/admin/submissions/:id', requireAdminAuth, async (req, res) => {
   try {
     const submissionId = Number(req.params.id);
+    const reviewerName = String(req.body?.reviewerName || '').trim();
     if (Number.isNaN(submissionId) || submissionId <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid submission id' });
+    }
+    if (!reviewerName) {
+      return res.status(400).json({ success: false, message: 'Reviewer name is required' });
     }
 
     const deleted = await rejectSubmission(submissionId);
@@ -453,7 +461,7 @@ app.delete('/api/admin/submissions/:id', requireAdminAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Submission not found or already processed' });
     }
 
-    return res.json({ success: true, message: 'Employee rejected and removed successfully' });
+    return res.json({ success: true, message: 'Employee rejected and removed successfully', rejectedBy: reviewerName });
   } catch (error) {
     console.error('Reject submission failed:', error);
     return res.status(500).json({ success: false, message: 'Failed to reject submission' });

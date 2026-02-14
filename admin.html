@@ -133,9 +133,25 @@
           <button class="btn btn-sm btn-outline-primary" id="backToDashboardBtn">Back to Dashboard</button>
         </div>
         <div class="details-body" id="detailsBody"></div>
-        <div class="d-flex gap-2 justify-content-end p-3 border-top" id="reviewActions">
+        <div class="p-3 border-top hidden" id="reviewActions">
+          <div class="row g-3 align-items-end mb-3">
+            <div class="col-md-5">
+              <label for="reviewerName" class="form-label">Reviewer Name</label>
+              <input type="text" id="reviewerName" class="form-control" placeholder="Enter your name" />
+            </div>
+            <div class="col-md-7">
+              <div class="form-check mt-3">
+                <input class="form-check-input" type="checkbox" id="reviewChecked" />
+                <label class="form-check-label" for="reviewChecked">
+                  All informations are checked properly
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="d-flex gap-2 justify-content-end">
           <button class="btn btn-outline-danger" id="rejectBtn">Reject</button>
           <button class="btn btn-success" id="verifyBtn">Correct</button>
+          </div>
         </div>
       </div>
     </div>
@@ -419,6 +435,16 @@
 
       async function verifySelected() {
         if (!selectedEntry) return;
+        const reviewerName = document.getElementById('reviewerName').value.trim();
+        const checked = document.getElementById('reviewChecked').checked;
+        if (!reviewerName) {
+          showStatus('Please enter reviewer name before verification', 'warning');
+          return;
+        }
+        if (!checked) {
+          showStatus('Please confirm all information is checked properly', 'warning');
+          return;
+        }
         const sure = window.confirm('Are you sure this employee data is correct?');
         if (!sure) return;
 
@@ -428,7 +454,11 @@
         try {
           const response = await fetch(`/api/admin/submissions/${selectedEntry.id}/verify`, {
             method: 'POST',
-            headers: { Authorization: `Bearer ${token}` }
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ reviewerName })
           });
           const result = await response.json().catch(() => ({}));
 
@@ -446,6 +476,16 @@
 
       async function rejectSelected() {
         if (!selectedEntry) return;
+        const reviewerName = document.getElementById('reviewerName').value.trim();
+        const checked = document.getElementById('reviewChecked').checked;
+        if (!reviewerName) {
+          showStatus('Please enter reviewer name before rejection', 'warning');
+          return;
+        }
+        if (!checked) {
+          showStatus('Please confirm all information is checked properly', 'warning');
+          return;
+        }
         const sure = window.confirm('Are you sure you want to reject this employee?');
         if (!sure) return;
 
@@ -455,7 +495,11 @@
         try {
           const response = await fetch(`/api/admin/submissions/${selectedEntry.id}`, {
             method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` }
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ reviewerName })
           });
           const result = await response.json().catch(() => ({}));
 
