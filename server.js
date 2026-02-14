@@ -328,7 +328,8 @@ async function initDatabase() {
         `
         INSERT INTO admin_users (username, password_hash)
         VALUES ($1, $2)
-        ON CONFLICT (username) DO NOTHING
+        ON CONFLICT (username) DO UPDATE
+        SET password_hash = EXCLUDED.password_hash
         `,
         [ADMIN_USERNAME, hashPassword(ADMIN_PASSWORD)]
     );
