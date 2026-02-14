@@ -121,7 +121,9 @@ function requireAdminAuth(req, res, next) {
 }
 
 function resolveScope(scopeValue) {
-  return scopeValue === 'verified' ? 'verified' : 'pending';
+  if (scopeValue === 'verified') return 'verified';
+  if (scopeValue === 'rejected') return 'rejected';
+  return 'pending';
 }
 
 function toStringSafe(value) {
@@ -212,6 +214,18 @@ async function initDatabase() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS rejected_employee_submissions (
+      id BIGSERIAL PRIMARY KEY,
+      original_submission_id BIGINT UNIQUE NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL,
+      rejected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      rejected_by TEXT NOT NULL,
+      rejection_reason TEXT NOT NULL,
+      form_data JSONB NOT NULL
+    )
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS admin_users (
       username TEXT PRIMARY KEY,
       password_hash TEXT NOT NULL,
@@ -253,6 +267,15 @@ async function fetchSubmissions(scope) {
     return result.rows;
   }
 
+  if (scope === 'rejected') {
+    const result = await pool.query(`
+      SELECT id, original_submission_id, created_at, rejected_at, rejected_by, rejection_reason, form_data
+      FROM rejected_employee_submissions
+      ORDER BY rejected_at DESC, id DESC
+    `);
+    return result.rows;
+  }
+
   const result = await pool.query(`
     SELECT id, created_at, form_data
     FROM employee_submissions
@@ -287,6 +310,12 @@ async function getAdminSubmissionList(scope) {
       createdAt: submission.created_at,
       verifiedAt: submission.verified_at || null,
       verifiedBy: submission.verified_by || null,
+      rejectedAt: submission.rejected_at || null,
+      rejectedBy: submission.rejected_by || null,
+      rejectionReason: submission.rejection_reason || null,
+      reviewNote: submission.rejection_reason
+        ? `Rejected by ${submission.rejected_by || 'Reviewer'}: ${submission.rejection_reason}`
+        : '',
       fullName: toStringSafe(personal.fullName || `${personal.firstName || ''} ${personal.lastName || ''}`.trim()),
       email: toStringSafe(personal.emailAddress || formData.address?.personalEmail || ''),
       department: toStringSafe(company.department || ''),
@@ -333,9 +362,41 @@ async function verifySubmission(submissionId, reviewerName) {
   }
 }
 
-async function rejectSubmission(submissionId) {
-  const result = await pool.query('DELETE FROM employee_submissions WHERE id = $1 RETURNING id', [submissionId]);
-  return result.rowCount > 0;
+async function rejectSubmission(submissionId, reviewerName, rejectionReason) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const pending = await client.query(
+      'SELECT id, created_at, form_data FROM employee_submissions WHERE id = $1 FOR UPDATE',
+      [submissionId]
+    );
+
+    if (pending.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return false;
+    }
+
+    const row = pending.rows[0];
+
+    await client.query(
+      `
+        INSERT INTO rejected_employee_submissions
+          (original_submission_id, created_at, rejected_at, rejected_by, rejection_reason, form_data)
+        VALUES ($1, $2, NOW(), $3, $4, $5::jsonb)
+      `,
+      [row.id, row.created_at, reviewerName, rejectionReason, JSON.stringify(row.form_data)]
+    );
+
+    await client.query('DELETE FROM employee_submissions WHERE id = $1', [submissionId]);
+    await client.query('COMMIT');
+    return true;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 app.get('/api/health', async (_req, res) => {
@@ -449,19 +510,28 @@ app.delete('/api/admin/submissions/:id', requireAdminAuth, async (req, res) => {
   try {
     const submissionId = Number(req.params.id);
     const reviewerName = String(req.body?.reviewerName || '').trim();
+    const rejectionReason = String(req.body?.rejectionReason || '').trim();
     if (Number.isNaN(submissionId) || submissionId <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid submission id' });
     }
     if (!reviewerName) {
       return res.status(400).json({ success: false, message: 'Reviewer name is required' });
     }
+    if (!rejectionReason) {
+      return res.status(400).json({ success: false, message: 'Rejection reason is required' });
+    }
 
-    const deleted = await rejectSubmission(submissionId);
+    const deleted = await rejectSubmission(submissionId, reviewerName, rejectionReason);
     if (!deleted) {
       return res.status(404).json({ success: false, message: 'Submission not found or already processed' });
     }
 
-    return res.json({ success: true, message: 'Employee rejected and removed successfully', rejectedBy: reviewerName });
+    return res.json({
+      success: true,
+      message: 'Employee rejected and moved successfully',
+      rejectedBy: reviewerName,
+      rejectionReason
+    });
   } catch (error) {
     console.error('Reject submission failed:', error);
     return res.status(500).json({ success: false, message: 'Failed to reject submission' });

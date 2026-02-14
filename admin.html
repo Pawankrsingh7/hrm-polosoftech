@@ -99,6 +99,7 @@
         <div class="d-flex flex-wrap gap-2">
           <button id="pendingViewBtn" class="btn btn-primary btn-sm">Employee Submissions</button>
           <button id="verifiedViewBtn" class="btn btn-outline-primary btn-sm">Verified Employees</button>
+          <button id="rejectedViewBtn" class="btn btn-outline-primary btn-sm">Rejected Employees</button>
           <button id="refreshBtn" class="btn btn-outline-primary">Refresh</button>
           <button id="downloadBtn" class="btn btn-success">Download Excel</button>
           <button id="logoutBtn" class="btn btn-outline-danger">Logout</button>
@@ -119,6 +120,7 @@
                 <th>Email</th>
                 <th>Department</th>
                 <th>Designation</th>
+                <th>Review Note</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -190,16 +192,24 @@
       function updateScopeButtons() {
         const pendingBtn = document.getElementById('pendingViewBtn');
         const verifiedBtn = document.getElementById('verifiedViewBtn');
+        const rejectedBtn = document.getElementById('rejectedViewBtn');
         const caption = document.getElementById('viewCaption');
 
         if (currentScope === 'pending') {
           pendingBtn.className = 'btn btn-primary btn-sm';
           verifiedBtn.className = 'btn btn-outline-primary btn-sm';
+          rejectedBtn.className = 'btn btn-outline-primary btn-sm';
           caption.textContent = 'Pending employee submissions';
-        } else {
+        } else if (currentScope === 'verified') {
           pendingBtn.className = 'btn btn-outline-primary btn-sm';
           verifiedBtn.className = 'btn btn-primary btn-sm';
+          rejectedBtn.className = 'btn btn-outline-primary btn-sm';
           caption.textContent = 'Verified employee submissions';
+        } else {
+          pendingBtn.className = 'btn btn-outline-primary btn-sm';
+          verifiedBtn.className = 'btn btn-outline-primary btn-sm';
+          rejectedBtn.className = 'btn btn-primary btn-sm';
+          caption.textContent = 'Rejected employee submissions';
         }
       }
 
@@ -230,7 +240,7 @@
         if (!rows || rows.length === 0) {
           bodyEl.innerHTML = `
             <tr>
-              <td colspan="5" class="text-center text-muted">No records available</td>
+              <td colspan="6" class="text-center text-muted">No records available</td>
             </tr>
           `;
           return;
@@ -243,6 +253,7 @@
             <td>${escapeHtml(row.email || '-')}</td>
             <td><span class="dept-badge">${escapeHtml(row.department || '-')}</span></td>
             <td>${escapeHtml(row.designation || '-')}</td>
+            <td>${escapeHtml(row.reviewNote || '-')}</td>
             <td>
               <button class="btn btn-sm btn-outline-secondary" data-index="${index}" data-action="details">See Details</button>
             </td>
@@ -438,10 +449,12 @@
         const reviewerName = document.getElementById('reviewerName').value.trim();
         const checked = document.getElementById('reviewChecked').checked;
         if (!reviewerName) {
+          window.alert('Please fill reviewer name first.');
           showStatus('Please enter reviewer name before verification', 'warning');
           return;
         }
         if (!checked) {
+          window.alert('Please check the confirmation checkbox before continuing.');
           showStatus('Please confirm all information is checked properly', 'warning');
           return;
         }
@@ -479,11 +492,18 @@
         const reviewerName = document.getElementById('reviewerName').value.trim();
         const checked = document.getElementById('reviewChecked').checked;
         if (!reviewerName) {
+          window.alert('Please fill reviewer name first.');
           showStatus('Please enter reviewer name before rejection', 'warning');
           return;
         }
         if (!checked) {
+          window.alert('Please check the confirmation checkbox before continuing.');
           showStatus('Please confirm all information is checked properly', 'warning');
+          return;
+        }
+        const rejectionReason = window.prompt('Please enter reason of rejection:');
+        if (!rejectionReason || !rejectionReason.trim()) {
+          window.alert('Rejection reason is required.');
           return;
         }
         const sure = window.confirm('Are you sure you want to reject this employee?');
@@ -499,7 +519,7 @@
               Authorization: `Bearer ${token}`,
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ reviewerName })
+            body: JSON.stringify({ reviewerName, rejectionReason: rejectionReason.trim() })
           });
           const result = await response.json().catch(() => ({}));
 
@@ -516,7 +536,7 @@
       }
 
       function setScope(scope) {
-        if (scope !== 'pending' && scope !== 'verified') return;
+        if (scope !== 'pending' && scope !== 'verified' && scope !== 'rejected') return;
         currentScope = scope;
         showDashboard();
         loadEntries();
@@ -529,6 +549,7 @@
 
       document.getElementById('pendingViewBtn').addEventListener('click', () => setScope('pending'));
       document.getElementById('verifiedViewBtn').addEventListener('click', () => setScope('verified'));
+      document.getElementById('rejectedViewBtn').addEventListener('click', () => setScope('rejected'));
       document.getElementById('refreshBtn').addEventListener('click', loadEntries);
       document.getElementById('downloadBtn').addEventListener('click', downloadExcel);
       document.getElementById('logoutBtn').addEventListener('click', logout);
